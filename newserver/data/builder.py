@@ -31,11 +31,11 @@ class BuildResult:
 
 def build_world_state(bundle_world: dict[str, Any], entity_templates: dict[str, Any]) -> BuildResult:
 	"""
-	对齐 Godot `WorldBuilder.gd` 的最小构建逻辑：
-	- 创建 Location 并注册
-	- 创建 Entity 并注册
-	- 将实体 ID 放入 Location.entities_in_location
-	- 处理 component_overrides（只做浅覆盖；深逻辑后续补）
+	Minimal build logic aligned with Godot `WorldBuilder.gd`:
+	- Create and register Location
+	- Create and register Entity
+	- Put entity ID into Location.entities_in_location
+	- Handle component_overrides (Shallow override only; deep logic later)
 	"""
 
 	ws = WorldState()
@@ -43,7 +43,7 @@ def build_world_state(bundle_world: dict[str, Any], entity_templates: dict[str, 
 	world_state_data = bundle_world.get("world_state", {})
 	ws.game_time.total_ticks = int(world_state_data.get("current_tick", 0))
 
-	# 1) 先注册地点
+	# 1) Register locations first
 	for loc_data in bundle_world.get("locations", []):
 		loc_id = str(loc_data.get("location_id", "")).strip()
 		if not loc_id:
@@ -55,8 +55,8 @@ def build_world_state(bundle_world: dict[str, Any], entity_templates: dict[str, 
 		)
 		ws.register_location(loc)
 
-	# 2) 创建并注册实体 + 放入地点
-	# 记录每个实体的快照与其“声明地点”（用于第二遍 parent_container 修正）
+	# 2) Create and register entities + Put in location
+	# Record snapshot and "declared location" for each entity (For 2nd pass parent_container correction)
 	snapshots_by_entity_id: dict[str, dict[str, Any]] = {}
 	declared_location_by_entity_id: dict[str, str] = {}
 
@@ -86,7 +86,7 @@ def build_world_state(bundle_world: dict[str, Any], entity_templates: dict[str, 
 			overrides = snapshot.get("component_overrides", {}) or {}
 			apply_component_overrides(ent, overrides)
 
-	# 2.5) 第二遍：处理 parent_container（建立“收纳关系”，并在必要时修正地点归属）
+	# 2.5) 2nd Pass: Handle parent_container (Establish "containment", correct location ownership if needed)
 	for entity_id, snapshot in snapshots_by_entity_id.items():
 		if not isinstance(snapshot, dict):
 			continue
@@ -98,38 +98,38 @@ def build_world_state(bundle_world: dict[str, Any], entity_templates: dict[str, 
 		if child is None:
 			continue
 
-		# parent 可以是实体容器，或地点
+		# parent can be entity container, or location
 		parent_entity = ws.get_entity_by_id(parent_id)
 		parent_location = ws.get_location_by_id(parent_id)
 
 		if parent_location is not None:
-			# 放入指定地点（仍是 ID-only，不做父子节点）
+			# Put in specific location (Still ID-only, no parent-child node)
 			_current_move_entity_between_locations(ws, entity_id, parent_location.location_id)
 			continue
 
 		if parent_entity is not None:
 			cc = parent_entity.get_component("ContainerComponent")
 			if not isinstance(cc, ContainerComponent):
-				# 容错：若 parent 没有容器组件，创建一个默认容器
-				# 用意：允许存档引用先行（LLM/数据驱动可能写了 parent_container 但忘了加 ContainerComponent）
-				# 必要性：否则构建阶段会直接失败，世界无法启动
+				# Fault Tolerance: If parent has no container component, create a default one
+				# Intent: Allow archive reference ahead (LLM/Data driven might write parent_container but forgot ContainerComponent)
+				# Necessity: Otherwise build phase fails directly, world cannot start
 				cc = _create_default_container_component()
 				parent_entity.add_component("ContainerComponent", cc)
 
 			cc.add_entity(child)
 
-			# 修正地点归属：child 应属于 parent 所在地点
+			# Correct location ownership: child should belong to parent's location
 			parent_loc = ws.get_location_of_entity(parent_entity.entity_id)
 			if parent_loc is not None:
 				_current_move_entity_between_locations(ws, entity_id, parent_loc.location_id)
 			continue
 
-		# 找不到 parent：忽略但不崩溃
-		# 假设存在：BuildDiagnostics 记录错误
-		# 用意：给 LLM/数据编辑者反馈；必要性：避免静默失败导致难排错
+		# Parent not found: Ignore but don't crash
+		# Assume existence: BuildDiagnostics logs error
+		# Intent: Feedback to LLM/Data editor; Necessity: Avoid silent failure making debugging hard
 		continue
 
-	# 2.6) 从存档恢复初始任务（tasks）
+	# 2.6) Restore initial tasks from archive
 	for tdata in list(bundle_world.get("tasks", []) or []):
 		if not isinstance(tdata, dict):
 			continue
@@ -151,10 +151,10 @@ def build_world_state(bundle_world: dict[str, Any], entity_templates: dict[str, 
 
 		host = host_entity.get_component("TaskHostComponent")
 		if not isinstance(host, TaskHostComponent):
-			# 兼容旧名：TaskComponent
+			# Compatible with old name: TaskComponent
 			host = host_entity.get_component("TaskComponent")
 		if not isinstance(host, TaskHostComponent):
-			# 若没有宿主组件，构建时补一个（容错）
+			# If no host component, add one during build (Fault tolerance)
 			host = TaskHostComponent()
 			host_entity.add_component("TaskHostComponent", host)
 
@@ -192,16 +192,16 @@ def build_world_state(bundle_world: dict[str, Any], entity_templates: dict[str, 
 			task_kwargs["tick_effects"] = [x for x in te if isinstance(x, dict)]
 
 		task = Task(**task_kwargs)
-		# 附着到宿主并注册到全局索引
+		# Attach to host and register to global index
 		try:
 			host.add_task(task)
 		except Exception:
-			# 重复ID等情况：忽略但继续构建
+			# Duplicate ID etc: Ignore but continue building
 			continue
 
 		ws.register_task(task)
 
-		# 可选：恢复某个 agent 的 current_task（如果存档明确指定）
+		# Optional: Restore an agent's current_task (If archive explicitly specifies)
 		if current_agent_id:
 			agent = ws.get_entity_by_id(current_agent_id)
 			if agent is not None:
@@ -209,7 +209,7 @@ def build_world_state(bundle_world: dict[str, Any], entity_templates: dict[str, 
 				if isinstance(worker, WorkerComponent):
 					worker.assign_task(task.task_id)
 
-	# 3) 最小初始化（例如 Creature current_*）
+	# 3) Minimal initialization (e.g. Creature current_*)
 	for ent in ws.entities.values():
 		ent.ensure_initialized()
 
@@ -234,8 +234,8 @@ def create_entity_from_template(template_id: str, instance_id: str, entity_templ
 	for comp_name, comp_data in components_data.items():
 		ent.add_component(comp_name, _build_component(comp_name, comp_data))
 
-	# 若是 agent，默认注入 WorkerComponent（迁移期数据里可能还没声明）
-	# 用意：让 IdleRule 可以基于 current_task_id 判断；必要性：你希望“无 current_task 才有决策权”
+	# If agent, inject WorkerComponent by default (Migration data might not declare yet)
+	# Intent: Let IdleRule judge based on current_task_id; Necessity: You want "Decision rights only when no current_task"
 	if ent.has_tag("agent") and not ent.has_component("WorkerComponent"):
 		ent.add_component("WorkerComponent", WorkerComponent())
 
@@ -244,7 +244,7 @@ def create_entity_from_template(template_id: str, instance_id: str, entity_templ
 
 def _build_component(component_name: str, comp_data: Any):
 	"""
-	把已迁移组件转成 dataclass；其它组件保持 UnknownComponent(dict)。
+	Convert migrated components to dataclass; others remain UnknownComponent(dict).
 	"""
 
 	if component_name == "TagComponent":
@@ -267,8 +267,8 @@ def _build_component(component_name: str, comp_data: Any):
 			common_knowledge_summary=str(d.get("common_knowledge_summary", "")),
 		)
 
-	# 新名字：AgentControlComponent
-	# 兼容旧数据：LLMControlComponent
+	# New name: AgentControlComponent
+	# Compatible with old data: LLMControlComponent
 	if component_name == "AgentControlComponent" or component_name == "LLMControlComponent":
 		d = comp_data or {}
 		if not isinstance(d, dict):
@@ -315,23 +315,23 @@ def _build_component(component_name: str, comp_data: Any):
 			return DecisionArbiterComponent.from_template_data(d)
 		return DecisionArbiterComponent.from_template_data({})
 
-	# 兼容旧 Godot 名称：TaskComponent -> Python: TaskHostComponent
+	# Compatible with old Godot name: TaskComponent -> Python: TaskHostComponent
 	if component_name == "TaskComponent" or component_name == "TaskHostComponent":
 		return TaskHostComponent()
 
-	# 未迁移组件（Edible/LLMControl/Perception/DecisionArbiter/TaskComponent/...）
+	# Unmigrated components (Edible/LLMControl/Perception/DecisionArbiter/TaskComponent/...)
 	raw = comp_data if isinstance(comp_data, dict) else {"value": comp_data}
 	return UnknownComponent(data=raw)
 
 
 def apply_component_overrides(entity: Entity, overrides: dict[str, Any]) -> None:
 	"""
-	MVP 版覆盖策略：如果组件是 UnknownComponent，则直接浅合并 dict；
-	已迁移组件（Tag/Creature/Agent/Container）先不做复杂覆盖，避免语义不一致。
+	MVP Override Strategy: If component is UnknownComponent, shallow merge dict directly;
+	Migrated components (Tag/Creature/Agent/Container) do not do complex override first, avoid semantic inconsistency.
 
-	假设存在：组件级 apply_snapshot()
-	用意：与 Godot WorldBuilder 的约定一致，让组件自己处理覆盖；
-	必要性：避免 builder 耦合组件内部字段，后续要补这个接口。
+	Assume existence: Component level apply_snapshot()
+	Intent: Consistent with Godot WorldBuilder convention, let component handle override itself;
+	Necessity: Avoid builder coupling component internal fields, need to add this interface later.
 	"""
 
 	for comp_name, comp_patch in (overrides or {}).items():
@@ -342,12 +342,12 @@ def apply_component_overrides(entity: Entity, overrides: dict[str, Any]) -> None
 		if comp is None:
 			continue
 
-		# 1) UnknownComponent：浅合并 data
+		# 1) UnknownComponent: Shallow merge data
 		if isinstance(comp, UnknownComponent):
 			comp.data.update(comp_patch)
 			continue
 
-		# 2) ContainerComponent：支持覆盖 slot config / items（用于读档恢复容器内容）
+		# 2) ContainerComponent: Support overriding slot config / items (For restoring container content from archive)
 		if isinstance(comp, ContainerComponent):
 			slots_patch = comp_patch.get("slots", None)
 			if isinstance(slots_patch, dict):
@@ -363,13 +363,13 @@ def apply_component_overrides(entity: Entity, overrides: dict[str, Any]) -> None
 						comp.slots[sid].items = [str(x) for x in slot_p["items"]]
 			continue
 
-		# 3) WorkerComponent：覆盖 current_task_id（用于恢复行动权/正在做的事）
+		# 3) WorkerComponent: Override current_task_id (For restoring action rights / what is being done)
 		if isinstance(comp, WorkerComponent):
 			if "current_task_id" in comp_patch:
 				comp.current_task_id = str(comp_patch.get("current_task_id", "") or "")
 			continue
 
-		# 4) 其它已迁移组件：对同名字段做浅赋值（不做深层语义）
+		# 4) Other migrated components: Shallow assignment to same-name fields (No deep semantics)
 		for k, v in comp_patch.items():
 			if hasattr(comp, k):
 				try:
@@ -379,7 +379,7 @@ def apply_component_overrides(entity: Entity, overrides: dict[str, Any]) -> None
 
 
 def _create_default_container_component() -> ContainerComponent:
-	# 默认一个名为 "main" 的槽位
+	# Default slot named "main"
 	cfg = {
 		"capacity_volume": 999.0,
 		"capacity_count": 999,
@@ -390,7 +390,7 @@ def _create_default_container_component() -> ContainerComponent:
 
 
 def _current_move_entity_between_locations(ws: WorldState, entity_id: str, to_location_id: str) -> None:
-	# 从所有地点移除再加入目标地点（容错优先）
+	# Remove from all locations then add to target location (Fault tolerance priority)
 	for loc in ws.locations.values():
 		if entity_id in loc.entities_in_location and str(loc.location_id) != str(to_location_id):
 			loc.remove_entity_id(entity_id)

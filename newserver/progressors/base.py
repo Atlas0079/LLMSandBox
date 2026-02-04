@@ -5,9 +5,9 @@ from typing import Protocol, Any
 
 class Progressor(Protocol):
 	"""
-	任务推进器接口：
-	- 输入：world_state、agent_id、task、ticks
-	- 输出：本 tick 增加的 progress（float）
+	Task Progressor Interface:
+	- Input: world_state, agent_id, task, ticks
+	- Output: progress delta added this tick (float)
 	"""
 
 	progressor_id: str

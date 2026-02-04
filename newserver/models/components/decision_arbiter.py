@@ -10,15 +10,15 @@ from .controller_resolver import resolve_enabled_controller_component
 @dataclass
 class DecisionArbiterComponent:
 	"""
-	对齐 Godot `DecisionArbiterComponent.gd`：
-	- 持有 ruleset
-	- 每 tick 调用 `check_if_interrupt_is_needed`
+	Align with Godot `DecisionArbiterComponent.gd`:
+	- Holds ruleset
+	- Calls `check_if_interrupt_is_needed` every tick
 	"""
 
 	ruleset: list[Any] = field(default_factory=list)
 
 	def per_tick(self, _ws: Any, _entity_id: str, _ticks_per_minute: int) -> None:
-		# 仲裁组件通常不需要推进，只读判断即可。
+		# Arbiter component usually doesn't need progression, read-only check suffices.
 		return
 
 	@staticmethod
@@ -38,17 +38,17 @@ class DecisionArbiterComponent:
 					)
 				)
 			else:
-				# 未迁移规则：忽略
-				# 假设存在：UnknownInterruptRule
-				# 用意：保留未知规则数据用于调试；必要性：当规则种类增多时便于逐步迁移
+				# Unmigrated rules: Ignore
+				# Assuming existence: UnknownInterruptRule
+				# Intent: Keep unknown rule data for debugging; Necessity: Facilitates gradual migration as rule types increase.
 				continue
 
-		# 优先级小的先检查（与你 Godot 版一致）
+		# Check lower priority first (consistent with your Godot version)
 		ruleset.sort(key=lambda r: int(getattr(r, "priority", 999999)))
 		return DecisionArbiterComponent(ruleset=ruleset)
 
 	def check_if_interrupt_is_needed(self, ws: Any, agent_id: str) -> InterruptResult:
-		# 若该实体没有“可用控制器”，则不进入决策（避免 Manager/Arbiter 对控制方式写死）
+		# If the entity has no "available controller", do not enter decision (avoid hardcoding control methods in Manager/Arbiter).
 		agent = ws.get_entity_by_id(agent_id) if hasattr(ws, "get_entity_by_id") else None
 		_ctrl_name, ctrl = resolve_enabled_controller_component(agent)
 		if ctrl is None:

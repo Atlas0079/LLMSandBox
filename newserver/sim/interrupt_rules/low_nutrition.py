@@ -9,7 +9,7 @@ from ...models.components import CreatureComponent
 @dataclass
 class LowNutritionRule:
 	"""
-	对齐 Godot `RuleLowNutrition.gd`：营养低于阈值时触发中断。
+	Align with Godot `RuleLowNutrition.gd`: Trigger interrupt when nutrition is below threshold.
 	"""
 
 	priority: int = 10
@@ -31,7 +31,7 @@ class LowNutritionRule:
 		if float(creature.current_nutrition) < float(self.threshold):
 			return InterruptResult(
 				interrupt=True,
-				reason="营养过低，需要进食",
+				reason="Low nutrition, need to eat",
 				rule_type="LowNutrition",
 				priority=self.priority,
 			)

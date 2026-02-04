@@ -1,5 +1,5 @@
 """
-组件模型（每个组件一个文件）。
+Component models (one file per component).
 """
 
 from .agent import AgentComponent

@@ -7,10 +7,10 @@ from typing import Any
 @dataclass
 class SimplePolicyActionProvider:
 	"""
-	最小自动策略（用于“自动模拟闭环”先跑起来）：
-	- 若看到可食用实体（tag: edible），就对它执行 Consume
+	Minimal Automatic Policy (For "Automatic Simulation Loop" bootstrapping):
+	- If edible entity seen (tag: edible), execute Consume on it
 
-	用意：把动作生成从 Manager 解耦；必要性：后续接入 LLM 时不改模拟主循环。
+	Intent: Decouple action generation from Manager; Necessity: No change to simulation main loop when plugging in LLM later.
 	"""
 
 	def decide(self, perception: dict[str, Any], reason: str) -> list[dict[str, Any]]:

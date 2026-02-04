@@ -9,25 +9,25 @@ from ..models.components import ContainerComponent
 @dataclass
 class PerceptionSystem:
 	"""
-	感知系统：
-	- 给出 agent 所在地点
-	- 给出地点内“可见”的实体（含 id/name/tags）
+	Perception System:
+	- Provide agent's location
+	- Provide "visible" entities in location (including id/name/tags)
 
-	V2（当前实现）：支持容器可见性
-	- 地点（Location）存“空间索引”：entities_in_location
-	- 容器（ContainerComponent）存“包含关系”
-	- 默认：被收纳的实体不可见
-	- 若容器 slot.config.transparent == true：可见该 slot 内的实体，并递归展开其透明内容
+	V2 (Current Implementation): Support container visibility
+	- Location stores "Spatial Index": entities_in_location
+	- Container (ContainerComponent) stores "Containment Relationship"
+	- Default: Contained entities are invisible
+	- If container slot.config.transparent == true: Entities in that slot are visible, and transparent contents are recursively expanded.
 	"""
 
 	def get_visible_events(self, ws: Any, agent_id: str, max_events: int = 20, tick_window: int = 10) -> list[dict[str, Any]]:
 		"""
-		观测“动态信息”：返回 agent 最近可见的事件。
+		Observe "Dynamic Information": Return recent visible events for agent.
 
-		规则（MVP）：
-		- 仅返回与 agent 同地点发生的事件（location_id 相同）
-		- 仅返回最近 tick_window 个 tick 内的事件
-		- 返回最近 max_events 条
+		Rules (MVP):
+		- Only return events happening in the same location as agent (same location_id)
+		- Only return events within the last tick_window ticks
+		- Return last max_events items
 		"""
 
 		loc = ws.get_location_of_entity(agent_id)
@@ -47,7 +47,7 @@ class PerceptionSystem:
 			tick = int(item.get("tick", 0) or 0)
 			if tick < min_tick:
 				break
-			# 只暴露最小必要字段给上层（避免把内部结构绑死）
+			# Expose only minimal necessary fields to upper layer (avoid coupling internal structure)
 			ev = item.get("event", {})
 			if isinstance(ev, dict):
 				out.append(
@@ -66,14 +66,14 @@ class PerceptionSystem:
 
 	def get_visible_interactions(self, ws: Any, viewer_id: str, max_records: int = 20, tick_window: int = 10) -> list[dict[str, Any]]:
 		"""
-		观测“可读交互日志”：返回 viewer 最近可见的动作尝试（recipe/interaction 级）。
+		Observe "Readable Interaction Log": Return recent visible action attempts for viewer (recipe/interaction level).
 
-		规则（MVP）：
-		- 仅返回与 viewer 同地点发生的记录（location_id 相同）
-		- 仅返回最近 tick_window 个 tick 内的记录
-		- 返回最近 max_records 条
+		Rules (MVP):
+		- Only return records happening in the same location as viewer (same location_id)
+		- Only return records within the last tick_window ticks
+		- Return last max_records items
 
-		返回结构：
+		Return Structure:
 		- [{"tick": int, "text": str, "actor_id": str, "status": str, "reason": str}]
 		"""
 
@@ -85,7 +85,7 @@ class PerceptionSystem:
 		now_tick = int(getattr(getattr(ws, "game_time", None), "total_ticks", 0))
 		min_tick = max(0, now_tick - int(tick_window))
 
-		# 从运行期服务拿到 recipe_db（用于模板渲染）
+		# Get recipe_db from runtime services (for template rendering)
 		recipe_db: dict[str, Any] = {}
 		services = getattr(ws, "services", {}) or {}
 		engine = services.get("interaction_engine")
@@ -124,7 +124,7 @@ class PerceptionSystem:
 
 	def _render_interaction_record(self, record: dict[str, Any], viewer_id: str, recipe_db: dict[str, Any]) -> str:
 		"""
-		把一条 interaction_log 记录渲染成自然语言叙述（MVP：仅支持“我/他人名字”两种视角）。
+		Render an interaction_log record into natural language narrative (MVP: Only supports "Me/Other Name" perspectives).
 		"""
 
 		actor_id = str(record.get("actor_id", "") or "")
@@ -135,14 +135,14 @@ class PerceptionSystem:
 		reason = str(record.get("reason", "") or "")
 		recipe_id = str(record.get("recipe_id", "") or "")
 
-		actor_text = "我" if str(viewer_id) == actor_id else actor_name
+		actor_text = "Me" if str(viewer_id) == actor_id else actor_name
 
 		reason_map = {
-			"NO_TARGET": "没找到目标",
-			"NO_RECIPE": "没有对应交互规则",
-			"TASK_NOT_IMPLEMENTED": "持续任务尚未实现",
+			"NO_TARGET": "Target not found",
+			"NO_RECIPE": "No corresponding interaction rule",
+			"TASK_NOT_IMPLEMENTED": "Continuous task not yet implemented",
 		}
-		reason_text = reason_map.get(reason, reason or "未知原因")
+		reason_text = reason_map.get(reason, reason or "Unknown reason")
 
 		template = ""
 		if recipe_id and isinstance(recipe_db, dict) and recipe_id in recipe_db:
@@ -155,9 +155,9 @@ class PerceptionSystem:
 
 		if not template:
 			if status == "success":
-				template = "{actor}执行了{verb}（{target}）"
+				template = "{actor} executed {verb} ({target})"
 			else:
-				template = "{actor}尝试{verb}（{target}）但失败了：{reason}"
+				template = "{actor} attempted {verb} ({target}) but failed: {reason}"
 
 		return (
 			str(template)
@@ -172,19 +172,19 @@ class PerceptionSystem:
 		if loc is None:
 			return {"agent_id": agent_id, "location": None, "entities": []}
 
-		# 1) 先计算“被收纳的实体ID集合”（用于从地点列表中剔除隐藏实体）
+		# 1) Calculate "Contained Entity ID Set" (Used to filter hidden entities from location list)
 		contained_ids = self._collect_contained_ids_in_location(ws, loc.location_id)
 
-		# 2) 顶层可见实体：在地点里但不在任何容器里
+		# 2) Top-level visible entities: In location but not in any container
 		visible_ids: list[str] = []
 		for eid in list(loc.entities_in_location):
 			if eid not in contained_ids:
 				visible_ids.append(str(eid))
 
-		# 3) 递归展开透明容器的可见内容
+		# 3) Recursively expand visible contents of transparent containers
 		visible_ids = self._expand_transparent_contents(ws, visible_ids)
 
-		# 4) 输出可见实体信息
+		# 4) Output visible entity information
 		entities: list[dict[str, Any]] = []
 		for eid in visible_ids:
 			ent = ws.get_entity_by_id(eid)
@@ -202,7 +202,7 @@ class PerceptionSystem:
 			"agent_id": agent_id,
 			"location": {"id": loc.location_id, "name": loc.location_name},
 			"entities": entities,
-			# 便于调试（前端可不显示）
+			# For debugging (Frontend can hide)
 			"hidden_entity_count": max(0, len(loc.entities_in_location) - len(visible_ids)),
 		}
 		if include_events:
@@ -213,16 +213,16 @@ class PerceptionSystem:
 
 	def _collect_contained_ids_in_location(self, ws: Any, location_id: str) -> set[str]:
 		"""
-		收集“属于某个容器”的实体ID集合（仅限同一地点）。
-		用意：用于从地点列表中剔除被收纳实体（不透明默认不可见）。
-		必要性：地点索引与容器关系是正交的，不做这步会导致 agent 全知。
+		Collect entity ID set "belonging to a container" (Limited to same location).
+		Intent: Filter contained entities from location list (Opaque by default invisible).
+		Necessity: Location index and container relationship are orthogonal, skipping this leads to agent omniscience.
 		"""
 		contained: set[str] = set()
 
 		for ent in list(getattr(ws, "entities", {}).values()):
 			if ent is None:
 				continue
-			# 只统计同地点的容器，避免跨地点容器泄漏
+			# Only count containers in the same location, avoid cross-location container leakage
 			ent_loc = ws.get_location_of_entity(getattr(ent, "entity_id", ""))
 			if ent_loc is None or str(getattr(ent_loc, "location_id", "")) != str(location_id):
 				continue
@@ -238,8 +238,8 @@ class PerceptionSystem:
 
 	def _expand_transparent_contents(self, ws: Any, seed_visible_ids: list[str]) -> list[str]:
 		"""
-		从“顶层可见实体”出发，递归展开所有透明槽位的内容。
-		规则：只有当一个容器实体本身可见时，才允许看到其 transparent 槽位内的实体。
+		Recursively expand contents of all transparent slots starting from "Top-level visible entities".
+		Rule: Only when a container entity itself is visible, can entities within its transparent slots be seen.
 		"""
 		visible: list[str] = []
 		seen: set[str] = set()
@@ -263,7 +263,7 @@ class PerceptionSystem:
 			if not isinstance(cc, ContainerComponent):
 				continue
 
-			# 只展开透明槽位
+			# Only expand transparent slots
 			for slot in cc.slots.values():
 				cfg = getattr(slot, "config", {}) or {}
 				if not bool(cfg.get("transparent", False)):

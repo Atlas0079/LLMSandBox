@@ -7,7 +7,7 @@ from typing import Any
 @dataclass
 class ContainerSlot:
 	"""
-	对齐 Godot `ContainerComponent.gd` 的 slot 结构：config + items（ID 列表）。
+	Align with slot structure of Godot `ContainerComponent.gd`: config + items (ID list).
 	"""
 
 	config: dict[str, Any] = field(default_factory=dict)
@@ -39,12 +39,12 @@ class ContainerComponent:
 
 	def add_entity(self, item_entity: Any, target_slot_id: str = "") -> bool:
 		"""
-		最小版容器加入逻辑（对齐 Godot 的 ContainerComponent.add_entity 的“形状”）。
+		Minimal container add logic (aligns with "shape" of Godot's ContainerComponent.add_entity).
 
-		注意：
-		- 这里没有实现“循环嵌套检测”（需要访问 WorldState 的后代收集）。
-		  假设存在：CycleDetector / WorldState.collect_descendant_item_ids
-		  用意：避免 A 包含 B 且 B 包含 A；必要性：复杂容器系统里必须有，否则会死循环/破坏索引。
+		Note:
+		- "Cycle Nesting Detection" is not implemented here (needs access to WorldState descendant collection).
+		  Assuming existence: CycleDetector / WorldState.collect_descendant_item_ids
+		  Intent: Avoid A containing B and B containing A; Necessity: Must have in complex container systems, otherwise causes infinite loops/index corruption.
 		"""
 		if item_entity is None:
 			return False
@@ -68,7 +68,7 @@ class ContainerComponent:
 
 	def _find_first_available_slot_for(self, item_entity: Any):
 		"""
-		选择第一个可用槽位：检查 capacity_count 与 accepted_tags（最小实现）。
+		Select first available slot: Check capacity_count and accepted_tags (minimal implementation).
 		"""
 		item_tags = []
 		if hasattr(item_entity, "get_all_tags"):

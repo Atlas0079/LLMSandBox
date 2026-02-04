@@ -50,7 +50,7 @@ class Entity:
 	def has_component(self, component_name: str) -> bool:
 		return component_name in self.components
 
-	# --- Tag helpers（对齐 Godot Entity.has_tag/get_all_tags）---
+	# --- Tag helpers (Align with Godot Entity.has_tag/get_all_tags) ---
 	def has_tag(self, tag_name: str) -> bool:
 		comp = self.components.get("TagComponent")
 		if isinstance(comp, TagComponent):

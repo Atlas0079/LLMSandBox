@@ -7,9 +7,9 @@ from typing import Any
 @dataclass
 class InteractionEngine:
 	"""
-	最小配方引擎（对齐 Godot InteractionEngine.gd）：
-	- 通过 verb + target_tags + parameter_match 匹配 recipe
-	- 输出 effects 列表与 context
+	Minimal Recipe Engine (Align with Godot InteractionEngine.gd):
+	- Match recipe via verb + target_tags + parameter_match
+	- Output effects list and context
 	"""
 
 	recipe_db: dict[str, Any]
@@ -32,8 +32,8 @@ class InteractionEngine:
 		process_data = recipe.get("process", {}) or {}
 		required_progress = float(process_data.get("required_progress", 0))
 		if required_progress != 0:
-			# 持续任务：不直接执行 outputs，而是创建 Task 交给 WorkerComponent 随 tick 推进
-			# 具体推进逻辑在 WorkerComponent.per_tick；完成效果在 WorldExecutor.FinishTask 执行
+			# Continuous Task: Do not execute outputs directly, instead create Task for WorkerComponent to advance with ticks
+			# Specific progression logic in WorkerComponent.per_tick; Completion effects executed in WorldExecutor.FinishTask
 			return {"status": "success", "effects": [{"effect": "CreateTask"}], "context": context}
 
 		effects = self._expand_dynamic_outputs(ws, target, recipe.get("outputs", []) or [])
@@ -76,7 +76,7 @@ class InteractionEngine:
 				prop_name = dyn.get("property")
 
 				comp = target.get_component(str(comp_name))
-				# UnknownComponent/真实组件都可能用 data dict 承载
+				# UnknownComponent/Real components might use data dict to hold data
 				val = None
 				if hasattr(comp, "data") and isinstance(getattr(comp, "data"), dict):
 					val = comp.data.get(str(prop_name))

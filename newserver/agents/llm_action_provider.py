@@ -33,7 +33,7 @@ def _entities_table(entities: list[dict[str, Any]]) -> str:
 		name = str(e.get("name", "") or "")
 		tags = e.get("tags", []) or []
 		lines.append(f"- id: {eid}, name: {name}, tags: {list(tags)}")
-	return "\n".join(lines) if lines else "(无可见实体)"
+	return "\n".join(lines) if lines else "(No visible entities)"
 
 
 def _interactions_text(interactions: list[dict[str, Any]]) -> str:
@@ -47,18 +47,18 @@ def _interactions_text(interactions: list[dict[str, Any]]) -> str:
 			lines.append(f"- {text}")
 		else:
 			lines.append(f"- [tick {int(tick)}] {text}")
-	return "\n".join(lines) if lines else "(无近期交互叙事)"
+	return "\n".join(lines) if lines else "(No recent interaction narrative)"
 
 
 def _build_available_verbs(recipe_db: dict[str, Any], visible_entities: list[dict[str, Any]]) -> tuple[str, str, set[str]]:
 	"""
-	返回：
-	- available_verbs_list: 给 grounder 的 verb 列表（文本）
-	- available_verbs_with_duration: 给 planner 的 verb + instant/duration（文本）
-	- allowed_verbs_set: 用于校验
+	Return:
+	- available_verbs_list: verb list for grounder (text)
+	- available_verbs_with_duration: verb + instant/duration for planner (text)
+	- allowed_verbs_set: for validation
 	"""
 
-	# 可见 tag 集合（n）
+	# Visible tag set (n)
 	visible_tags: set[str] = set()
 	for e in list(visible_entities or []):
 		tags = (e or {}).get("tags", []) or []
@@ -73,7 +73,7 @@ def _build_available_verbs(recipe_db: dict[str, Any], visible_entities: list[dic
 		if not verb:
 			continue
 		req_tags = list(recipe.get("target_tags", []) or [])
-		# 若没有 target_tags，默认认为可用；否则需要可见实体中存在满足 tags 的候选
+		# If no target_tags, default to available; otherwise need visible entity meeting tags
 		ok = True
 		if req_tags:
 			ok = True
@@ -89,12 +89,12 @@ def _build_available_verbs(recipe_db: dict[str, Any], visible_entities: list[dic
 
 	allowed = set(verbs.keys())
 
-	# grounder 用：只给 verb 名字（m）
-	available_verbs_list = "\n".join([f"- {v}" for v in sorted(allowed)]) if allowed else "(无可用动词)"
+	# For grounder: Only verb names (m)
+	available_verbs_list = "\n".join([f"- {v}" for v in sorted(allowed)]) if allowed else "(No available verbs)"
 
-	# planner 用：verb + instant/duration（m）
+	# For planner: verb + instant/duration (m)
 	with_duration_lines = [f"- {v}: {verbs[v]}" for v in sorted(allowed)]
-	available_verbs_with_duration = "\n".join(with_duration_lines) if with_duration_lines else "(无可用动词)"
+	available_verbs_with_duration = "\n".join(with_duration_lines) if with_duration_lines else "(No available verbs)"
 
 	return (available_verbs_list, available_verbs_with_duration, allowed)
 
@@ -102,12 +102,12 @@ def _build_available_verbs(recipe_db: dict[str, Any], visible_entities: list[dic
 @dataclass
 class LLMActionProvider:
 	"""
-	两层 LLM 的 action 生成器：
-	- Planner：输出高层自然语言意图
-	- Grounder：输出多步 action JSON 数组
+	Two-Layer LLM Action Generator:
+	- Planner: Output high-level natural language intent
+	- Grounder: Output multi-step action JSON array
 
-	说明：
-	- 记忆模块暂不实现：Planner 直接使用感知过滤后的“最近交互叙事”作为详细事件流输入。
+	Explanation:
+	- Memory module not implemented yet: Planner uses perception-filtered "recent interaction narrative" directly as detailed event stream input.
 	"""
 
 	llm: DualModelLLM
@@ -115,37 +115,37 @@ class LLMActionProvider:
 	grounder_template_path: Path = _repo_root() / "Data" / "LLMContext_Grounder.md"
 	debug: bool = False
 
-	# System Prompt 定义
+	# System Prompt Definition
 	PLANNER_SYSTEM_PROMPT = """
-你是沙盒世界中的角色/智能体（Agent）。你需要基于 User 提供的上下文，决定接下来要做什么。
+You are a character/Agent in a sandbox world. You need to decide what to do next based on the context provided by User.
 
-**强约束：**
-- 你只能输出“高层自然语言意图/下一步目标”，不要输出任何 `verb/target_id` 形式的 action。
-- 地点是离散的（location 节点）。若你的意图包含跨地点移动，这会在执行层被转为一个需要时间推进的 Task；一旦进入 Task，你将交还行动权。
-- 你并不全知：只能依赖“当前观测”和“最近交互叙事”推理。
+**Strong Constraints:**
+- You can ONLY output "High-level natural language intent/Next goal", DO NOT output any action in `verb/target_id` format.
+- Locations are discrete (location nodes). If your intent involves cross-location movement, this will be converted to a time-consuming Task at execution layer; once entering Task, you yield action rights.
+- You are NOT omniscient: Can only rely on "Current Observation" and "Recent Interaction Narrative" for reasoning.
 
-**你必须输出：**
-- 一段简短的自然语言意图（1-3 句），包含：目标、对象（若有）、地点（若有）、以及你认为的关键约束。
+**You MUST output:**
+- A short natural language intent (1-3 sentences), including: Goal, Object (if any), Location (if any), and key constraints you think of.
 
-**你可以输出（可选）：**
-- 一段“如果失败则…”的备选策略（最多 2 条）。
+**You CAN output (Optional):**
+- A "If failed then..." alternative strategy (Max 2).
 """
 
 	GROUNDER_SYSTEM_PROMPT = """
-你是一个“动作翻译官”（Action Grounder）。你的任务是把 Planner 的自然语言意图翻译成具体的 Action JSON 序列。
+You are an "Action Grounder". Your task is to translate Planner's natural language intent into concrete Action JSON sequence.
 
-**输入：**
-- Planner 意图：高层的自然语言描述。
-- 可见实体列表：当前地点你真正能操作的实体。
-- 可用动词列表：当前允许使用的动词。
+**Input:**
+- Planner Intent: High-level natural language description.
+- Visible Entity List: Entities you can truly manipulate at current location.
+- Available Verb List: Verbs allowed to use currently.
 
-**输出约束（CRITICAL）：**
-1. 必须输出一个 JSON 数组，数组元素是 Action 对象。
-2. Action 对象格式：`{"verb": "动词", "target_id": "实体ID", "parameters": {}}`
-3. 只能使用“可用动词列表”里的动词。
-4. `target_id` 必须在“可见实体列表”里，或者是你自己（agent_id）。
-5. 对于耗时动作（duration），它必须是序列的最后一个动作（因为它会触发 Task 占用行动权）。
-6. 不要在 JSON 前后加任何 Markdown 标记（如 ```json），只输出纯 JSON 字符串。
+**Output Constraints (CRITICAL):**
+1. MUST output a JSON array, elements are Action objects.
+2. Action object format: `{"verb": "verb", "target_id": "entityID", "parameters": {}}`
+3. ONLY use verbs from "Available Verb List".
+4. `target_id` MUST be in "Visible Entity List", or yourself (agent_id).
+5. For duration actions, it MUST be the last action in sequence (Because it triggers Task and occupies action rights).
+6. DO NOT add any Markdown tags (like ```json) around JSON, ONLY output pure JSON string.
 """
 
 	def decide(self, perception: dict[str, Any], reason: str, agent_id: str | None = None) -> list[dict[str, Any]]:
@@ -160,11 +160,12 @@ class LLMActionProvider:
 		tick_str = str(tick) if tick is not None else ""
 
 		recipe_db: dict[str, Any] = {}
-		# 约定：perception 可以携带 recipe_db（由上层注入）；否则退化为无可用动词
+		# Convention: perception can carry recipe_db (Injected by upper layer); otherwise degrade to no available verbs
 		if isinstance((perception or {}).get("recipe_db", None), dict):
 			recipe_db = dict((perception or {}).get("recipe_db") or {})
 
 		available_verbs_list, available_verbs_with_duration, allowed_verbs = _build_available_verbs(recipe_db, visible_entities)
+
 
 		planner_template = _read_text(self.planner_template_path)
 		planner_prompt = _fill_template(
@@ -246,17 +247,17 @@ class LLMActionProvider:
 		return self._validate_actions(actions, allowed_verbs, visible_entities)
 
 	def _parse_actions(self, raw: str) -> list[dict[str, Any]]:
-		# 允许模型输出 ```json fenced block```，尽量容错提取
+		# Allow model output ```json fenced block```, try best effort extraction
 		s = str(raw or "").strip()
 		if "```" in s:
 			parts = s.split("```")
-			# 选择包含 '[' 的那段
+			# Select the part containing '['
 			for p in parts:
 				if "[" in p and "]" in p:
 					s = p
 					break
 		s = s.strip()
-		# 去掉可能的 "json" 标记行
+		# Remove possible "json" tag line
 		if s.lower().startswith("json"):
 			s = "\n".join(s.splitlines()[1:]).strip()
 
@@ -295,7 +296,7 @@ class LLMActionProvider:
 
 def build_default_llm_provider() -> LLMActionProvider:
 	"""
-	按你提供的模型名构造默认两层 LLM provider。
+	Construct default two-layer LLM provider with provided model names.
 	"""
 
 	client = OpenAICompatClient()

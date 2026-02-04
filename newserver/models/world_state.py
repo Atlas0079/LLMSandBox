@@ -13,8 +13,8 @@ from .task import Task
 @dataclass
 class WorldState:
 	"""
-	后端世界状态的唯一真相（Single Source of Truth）。
-	对齐 Godot 的 `WorldManager.gd` 的核心索引能力，但这里是纯数据结构。
+	Single Source of Truth for backend world state.
+	Align with Godot's `WorldManager.gd` core indexing capabilities, but this is a pure data structure.
 	"""
 
 	game_time: GameTime = field(default_factory=GameTime)
@@ -25,28 +25,28 @@ class WorldState:
 
 	paths: dict[str, Any] = field(default_factory=dict)
 
-	# 运行期服务注册表（由 WorldManager 注入，供组件在 per_tick 中访问系统能力）
-	# 约定 key（可扩展）：
+	# Runtime service registry (Injected by WorldManager, for components to access system capabilities in per_tick)
+	# Convention keys (Extensible):
 	# - "perception_system"
 	# - "interaction_engine"
 	# - "default_action_provider"
 	# - "action_providers"
 	services: dict[str, Any] = field(default_factory=dict)
 
-	# per_tick 阶段由组件写入，Manager 统一消费（执行器唯一写入口）
+	# Written by components in per_tick phase, consumed by Manager (Single executor write entry)
 	# item: {"effect": {...}, "context": {...}}
 	# pending_effects: list[dict[str, Any]] = field(default_factory=list) # REMOVED: Immediate execution mode
 
 
-	# 世界事件日志（用于观测/回放/调试）
-	# 约定：每条记录包含 tick + 发生地点（用于“同地点可见”的过滤）
+	# World event log (For observation/replay/debug)
+	# Convention: Each record contains tick + location (For "visible in same location" filtering)
 	event_log: list[dict[str, Any]] = field(default_factory=list)
 	_event_seq: int = 0
 
-	# 交互/配方级日志（给 LLM/Planner 用的“可读事件流”的结构化来源）
-	# 说明：
-	# - 记录每次 ActionAttempt（成功/失败都记）
-	# - 记录必要的“名字快照”，避免实体销毁后无法渲染叙事
+	# Interaction/Recipe level log (Structured source of "readable event stream" for LLM/Planner)
+	# Explanation:
+	# - Record every ActionAttempt (Both success/failure)
+	# - Record necessary "name snapshots" to avoid inability to render narrative after entity destruction
 	interaction_log: list[dict[str, Any]] = field(default_factory=list)
 	_interaction_seq: int = 0
 
@@ -60,12 +60,12 @@ class WorldState:
 		recipe_id: str = "",
 	) -> None:
 		"""
-		记录一次动作尝试（ActionAttempt / InteractionAttempt）。
+		Record an action attempt (ActionAttempt / InteractionAttempt).
 
-		约定字段：
+		Convention fields:
 		- actor_id/target_id/verb/recipe_id/status/reason
-		- actor_name/target_name：名字快照（用于多视角渲染与实体销毁后的回放）
-		- location_id：发生地点快照（用于“同地点可见”过滤）
+		- actor_name/target_name: Name snapshots (For multi-perspective rendering and replay after entity destruction)
+		- location_id: Location snapshot (For "visible in same location" filtering)
 		"""
 
 		aid = str(actor_id or "")
@@ -106,11 +106,11 @@ class WorldState:
 
 	def record_event(self, event: dict[str, Any], context: dict[str, Any] | None = None) -> None:
 		"""
-		记录一条世界事件到 event_log。
+		Record a world event to event_log.
 
-		说明：
-		- event 是执行器返回的事件 dict（例如 PropertyModified/EntityDestroyed/TaskFinished）
-		- context 主要用于补充 actor_id（通常是 agent_id）与地点信息
+		Explanation:
+		- event is the event dict returned by executor (e.g., PropertyModified/EntityDestroyed/TaskFinished)
+		- context is mainly used to supplement actor_id (usually agent_id) and location info
 		"""
 
 		if not isinstance(event, dict):
@@ -163,7 +163,7 @@ class WorldState:
 	def unregister_task(self, task_id: str) -> None:
 		self.tasks.pop(task_id, None)
 
-	# --- 位置解析（对齐 Godot WorldManager.get_location_of_entity）---
+	# --- Location Resolution (Align with Godot WorldManager.get_location_of_entity) ---
 	def get_location_of_entity(self, entity_id: str) -> Location | None:
 		visited: set[str] = set()
 		return self._resolve_location_for_entity(entity_id, visited)
@@ -175,12 +175,12 @@ class WorldState:
 			return None
 		visited.add(entity_id)
 
-		# 1) 直接在地点列表中查找
+		# 1) Search directly in location list
 		for loc in self.locations.values():
 			if entity_id in loc.entities_in_location:
 				return loc
 
-		# 2) 若不在地点，尝试查找其直接容器实体
+		# 2) If not in location, try to find its direct container entity
 		parent_container = self._find_container_entity_holding_item(entity_id)
 		if parent_container is not None:
 			return self._resolve_location_for_entity(parent_container.entity_id, visited)
@@ -195,7 +195,7 @@ class WorldState:
 					return ent
 		return None
 
-	# --- 地点索引维护（对齐 Godot WorldManager.ensure_entity_in_location / removed）---
+	# --- Location Index Maintenance (Align with Godot WorldManager.ensure_entity_in_location / removed) ---
 	def ensure_entity_in_location(self, entity_id: str, location_id: str) -> None:
 		loc = self.get_location_by_id(location_id)
 		if loc is None:
@@ -217,7 +217,7 @@ class WorldState:
 
 	def collect_descendant_item_ids(self, root_entity_id: str) -> list[str]:
 		"""
-		递归收集容器实体的后代物品 ID（对齐 Godot collect_descendant_item_ids）。
+		Recursively collect descendant item IDs of container entity (Align with Godot collect_descendant_item_ids).
 		"""
 		collected: list[str] = []
 		root = self.get_entity_by_id(root_entity_id)

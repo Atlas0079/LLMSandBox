@@ -9,7 +9,7 @@ class Location:
 	location_name: str = "Unnamed Location"
 	description: str = ""
 
-	# 只存储实体 ID（与 Godot 纯 ID 模式一致）
+	# Only store entity IDs (Consistent with Godot pure ID mode)
 	entities_in_location: list[str] = field(default_factory=list)
 
 	# path_id -> target_location_id

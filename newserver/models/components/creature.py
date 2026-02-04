@@ -6,7 +6,7 @@ from dataclasses import dataclass
 @dataclass
 class CreatureComponent:
 	"""
-	最小实现：只保留你当前用到/会被 effect 修改的字段。
+	Minimal implementation: Only keep fields you currently use/will be modified by effects.
 	"""
 
 	max_hp: float = 100.0

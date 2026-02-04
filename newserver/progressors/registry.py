@@ -16,6 +16,6 @@ def get_progressor(progressor_id: str) -> Progressor:
 	pid = str(progressor_id or "").strip()
 	if pid in _REGISTRY:
 		return _REGISTRY[pid]
-	# 默认推进器（线性推进）
+	# Default Progressor (Linear Progression)
 	return _REGISTRY["Linear"]
 

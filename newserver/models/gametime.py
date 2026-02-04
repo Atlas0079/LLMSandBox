@@ -6,12 +6,12 @@ from dataclasses import dataclass
 @dataclass
 class GameTime:
 	"""
-	与 Godot `GameTime.gd` 对齐的最小时间结构。
+	Minimal time structure aligned with Godot `GameTime.gd`.
 	"""
 
 	total_ticks: int = 0
 
-	# --- 常量（与 GDScript 版本一致）---
+	# --- Constants (Consistent with GDScript version) ---
 	TICKS_PER_MINUTE: int = 1
 	MINUTES_PER_HOUR: int = 60
 	HOURS_PER_DAY: int = 24
@@ -47,8 +47,8 @@ class GameTime:
 		return 1 + (ticks_in_year // den_month)
 
 	def get_day_of_month(self) -> int:
-		# 假设存在：更精确的日历计算（考虑月/周边界）
-		# 用意：给 UI/日志提供准确日期；必要性：目前仅用于调试输出，MVP 可先简化
+		# Assume existence: More precise calendar calculation (Considering month/week boundaries)
+		# Intent: Provide accurate date for UI/Log; Necessity: Currently only for debug output, MVP can be simplified
 		return 1
 
 	def get_hour(self) -> int:

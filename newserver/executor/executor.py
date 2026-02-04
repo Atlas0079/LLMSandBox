@@ -11,13 +11,13 @@ from ..models.task import Task
 @dataclass
 class WorldExecutor:
 	"""
-	执行器：世界“写操作”的唯一入口（对齐 Godot WorldExecutor.gd）。
+	Executor: Single entry point for world "write operations" (Align with Godot WorldExecutor.gd).
 
-	注意：
-	- 本类只关心“怎么写”，不关心“为什么写”（决策逻辑在 Manager/LLM/策略层）。
+	Note:
+	- This class only concerns "how to write", not "why to write" (Decision logic in Manager/LLM/Policy layer).
 	"""
 
-	# 运行期创建实体时需要模板；若未提供，则 CreateEntity 会报错事件
+	# Template required when creating entity at runtime; if not provided, CreateEntity will report error event
 	entity_templates: dict[str, Any] | None = None
 
 	def execute(self, ws: Any, effect_data: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
@@ -59,7 +59,7 @@ class WorldExecutor:
 	def _resolve_container_or_location_from_ctx(self, ws: Any, ctx: dict[str, Any], key_or_idkey: str):
 		id_key = key_or_idkey if str(key_or_idkey).endswith("_id") else f"{key_or_idkey}_id"
 		id_val = str((ctx or {}).get(id_key, ""))
-		# 容器：实体且有 ContainerComponent；地点：location_id
+		# Container: Entity with ContainerComponent; Location: location_id
 		ent = ws.get_entity_by_id(id_val)
 		if ent is not None and isinstance(ent.get_component("ContainerComponent"), ContainerComponent):
 			return ent
@@ -82,7 +82,7 @@ class WorldExecutor:
 		if comp is None:
 			return [{"type": "ExecutorError", "message": f"ModifyProperty: component missing: {comp_name}"}]
 
-		# 目前只严格支持 CreatureComponent 的数字属性，其他情况后续扩展
+		# Currently only strictly supports numeric properties of CreatureComponent, other cases to be extended later
 		if isinstance(comp, CreatureComponent):
 			comp.ensure_initialized()
 			cur = getattr(comp, prop_name, None)
@@ -100,7 +100,7 @@ class WorldExecutor:
 				}
 			]
 
-		# UnknownComponent：尝试写入 data dict
+		# UnknownComponent: Attempt to write to data dict
 		if hasattr(comp, "data") and isinstance(getattr(comp, "data"), dict):
 			cur = comp.data.get(prop_name, 0)
 			try:
@@ -133,10 +133,10 @@ class WorldExecutor:
 		if not isinstance(template, dict) or not template:
 			return [{"type": "ExecutorError", "message": f"CreateEntity: template not found: {template_id}"}]
 
-		# 假设存在：RuntimeEntityFactory
-		# 用意：运行期创建实体与读档构建分离；必要性：CreateEntity 需要复用模板构建组件逻辑
-		# 目前采用最小策略：复用 builder 的组件构建语义（只构建已迁移组件，其它为 UnknownComponent）
-		from ..data.builder import create_entity_from_template  # 局部 import 避免循环依赖
+		# Assume existence: RuntimeEntityFactory
+		# Intent: Separate runtime entity creation from load building; Necessity: CreateEntity needs to reuse template component building logic
+		# Currently use minimal strategy: Reuse builder component building semantics (Only build migrated components, others as UnknownComponent)
+		from ..data.builder import create_entity_from_template  # Local import to avoid circular dependency
 
 		new_id = str(data.get("instance_id") or f"{template_id}_{uuid4().hex[:8]}")
 		new_entity = create_entity_from_template(str(template_id), new_id, self.entity_templates)
@@ -152,7 +152,7 @@ class WorldExecutor:
 				cc = parent.get_component("ContainerComponent")
 				if isinstance(cc, ContainerComponent):
 					if cc.add_entity(new_entity):
-						# 双索引：加入容器所在地点索引
+						# Double Indexing: Add to container's location index
 						loc = ws.get_location_of_entity(parent.entity_id)
 						if loc is not None:
 							ws.ensure_entity_in_location(new_entity.entity_id, loc.location_id)
@@ -167,7 +167,7 @@ class WorldExecutor:
 					placed = True
 
 		if not placed:
-			# 回退：尽量放到 agent 所在地点
+			# Fallback: Try to place at agent's location
 			agent = self._resolve_entity_from_ctx(ws, context, "agent")
 			loc = ws.get_location_of_entity(agent.entity_id) if agent is not None else None
 			if loc is not None:
@@ -191,18 +191,18 @@ class WorldExecutor:
 
 		events: list[dict[str, Any]] = []
 
-		# 0) 若是容器，先递归销毁子项（避免遗留悬挂 ID）
+		# 0) If container, recursively destroy children first (Avoid dangling IDs)
 		cc_self = ent.get_component("ContainerComponent")
 		if isinstance(cc_self, ContainerComponent):
 			for child_id in list(cc_self.get_all_item_ids()):
 				events.extend(self.execute(ws, {"effect": "DestroyEntity", "target": "entity_to_destroy"}, {"entity_to_destroy_id": child_id}))
 
-		# 1) 从所有地点索引移除
+		# 1) Remove from all location indexes
 		for loc in ws.locations.values():
 			if ent.entity_id in loc.entities_in_location:
 				loc.remove_entity_id(ent.entity_id)
 
-		# 2) 从所有容器移除（遍历所有 ContainerComponent）
+		# 2) Remove from all containers (Iterate all ContainerComponent)
 		for holder in ws.entities.values():
 			cc = holder.get_component("ContainerComponent")
 			if isinstance(cc, ContainerComponent):
@@ -210,13 +210,13 @@ class WorldExecutor:
 					if ent.entity_id in slot.items:
 						slot.items.remove(ent.entity_id)
 
-		# 3) 删除实体本身
+		# 3) Delete entity itself
 		ws.entities.pop(ent.entity_id, None)
 		events.append({"type": "EntityDestroyed", "entity_id": ent.entity_id})
 		return events
 
 	def _execute_transfer_entity(self, ws: Any, data: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
-		# 约定：context 提供 entity_id/source_id/destination_id（与你 Godot 版一致）
+		# Convention: context provides entity_id/source_id/destination_id (Consistent with your Godot version)
 		entity_to_move = self._resolve_entity_from_ctx(ws, context, "entity_id")
 		source_node = self._resolve_container_or_location_from_ctx(ws, context, "source_id")
 		dest_node = self._resolve_container_or_location_from_ctx(ws, context, "destination_id")
@@ -224,7 +224,7 @@ class WorldExecutor:
 		if entity_to_move is None or source_node is None or dest_node is None:
 			return [{"type": "ExecutorError", "message": "TransferEntity: missing entity/source/destination"}]
 
-		# 源/目标地点（用于跨地点级联迁移）
+		# Source/Target location (For cross-location cascading transfer)
 		source_loc = None
 		dest_loc = None
 		if hasattr(source_node, "location_id"):
@@ -240,7 +240,7 @@ class WorldExecutor:
 		if source_loc is not None and dest_loc is not None:
 			cross_location = str(source_loc.location_id) != str(dest_loc.location_id)
 
-		# 1) 从来源移除
+		# 1) Remove from source
 		if hasattr(source_node, "location_id"):
 			if cross_location:
 				source_node.remove_entity_id(entity_to_move.entity_id)
@@ -250,7 +250,7 @@ class WorldExecutor:
 				if not cc.remove_entity_by_id(entity_to_move.entity_id):
 					return [{"type": "ExecutorError", "message": "TransferEntity: failed to remove from source container"}]
 
-		# 2) 添加到目标
+		# 2) Add to destination
 		add_ok = False
 		if hasattr(dest_node, "location_id"):
 			add_ok = bool(dest_node.add_entity_id(entity_to_move.entity_id))
@@ -264,7 +264,7 @@ class WorldExecutor:
 		if not add_ok:
 			return [{"type": "ExecutorError", "message": "TransferEntity: failed to add to destination"}]
 
-		# 3) 跨地点级联迁移（容器实体要带后代）
+		# 3) Cross-location cascading transfer (Container entity must bring descendants)
 		if cross_location and source_loc is not None and dest_loc is not None:
 			ids_to_move = [entity_to_move.entity_id]
 			cc = entity_to_move.get_component("ContainerComponent")
@@ -337,7 +337,7 @@ class WorldExecutor:
 
 		host = host_entity.get_component("TaskHostComponent")
 		if not isinstance(host, TaskHostComponent):
-			# 兼容旧名：TaskComponent（迁移期可能仍叫这个）
+			# Compatible with old name: TaskComponent (Might still be called this during migration)
 			host = host_entity.get_component("TaskComponent")
 		if not isinstance(host, TaskHostComponent):
 			host = TaskHostComponent()
@@ -353,7 +353,7 @@ class WorldExecutor:
 		task.required_progress = float(process.get("required_progress", 1))
 		task.completion_effects = [x for x in (recipe.get("outputs", []) or []) if isinstance(x, dict)]
 
-		# 推进器配置：优先 recipe["progression"]，其次 process["progression"]
+		# Progressor config: Prioritize recipe["progression"], then process["progression"]
 		prog = recipe.get("progression", None)
 		if prog is None:
 			prog = process.get("progression", {}) or {}
@@ -370,7 +370,7 @@ class WorldExecutor:
 
 		events: list[dict[str, Any]] = [{"type": "TaskCreated", "task_id": task.task_id, "target_entity_id": target.entity_id}]
 
-		# 若 context 提供 agent_id，则默认把任务分配给该 agent，并占用行动权（WorkerComponent.current_task_id）
+		# If context provides agent_id, assign task to that agent by default, and occupy action rights (WorkerComponent.current_task_id)
 		if agent is not None:
 			worker = agent.get_component("WorkerComponent")
 			if isinstance(worker, WorkerComponent):
@@ -429,14 +429,14 @@ class WorldExecutor:
 		if task is None:
 			return [{"type": "ExecutorError", "message": "FinishTask: task not found"}]
 
-		# 关键修正：完成效果通常以 recipe 的 target/agent 作为语义目标，
-		# 但 FinishTask 的 context 可能只包含 task_id/agent_id。
-		# 为了让诸如 {"target": "target"} 的 completion_effects 可执行，
-		# 这里补齐 target_id（默认等于任务目标实体）。
+		# Critical Fix: Completion effects usually take recipe's target/agent as semantic target,
+		# But FinishTask context might only contain task_id/agent_id.
+		# To make completion_effects like {"target": "target"} executable,
+		# Fill target_id here (Defaults to task target entity).
 		if isinstance(context, dict):
 			context.setdefault("target_id", str(getattr(task, "target_entity_id", "") or ""))
 
-		# 执行完成效果（优先用 task 内固化的 completion_effects）
+		# Execute completion effects (Prioritize completion_effects solidified in task)
 		effects = list(task.completion_effects or [])
 		if not effects:
 			recipe = (context or {}).get("recipe", {}) or {}
@@ -447,7 +447,7 @@ class WorldExecutor:
 		for eff in effects:
 			events.extend(self.execute(ws, eff, context))
 
-		# 从宿主移除 + 全局注销
+		# Remove from host + Global unregister
 		host_entity = None
 		agent_id = str((context or {}).get("agent_id", "") or "")
 		if agent_id:

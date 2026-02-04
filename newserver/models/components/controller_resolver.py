@@ -9,20 +9,20 @@ from .player_control import PlayerControlComponent
 
 def resolve_enabled_controller_component(entity: Any):
 	"""
-	从实体上解析“启用的控制器组件”。
+	Resolve "enabled controller component" from entity.
 
-	返回：
-	- (component_name, component_instance) 或 (None, None)
+	Returns:
+	- (component_name, component_instance) or (None, None)
 
-	说明：
-	- 兼容旧数据：LLMControlComponent 会在 builder 中被构建为 AgentControlComponent，
-	  但 entity.components 的 key 仍可能是 "LLMControlComponent"。
+	Explanation:
+	- Compatible with old data: LLMControlComponent will be built as AgentControlComponent in builder,
+	  but key in entity.components might still be "LLMControlComponent".
 	"""
 
 	if entity is None or not hasattr(entity, "get_component"):
 		return (None, None)
 
-	# 优先级：玩家 > LLM/Agent > 纯逻辑（你后续可以按需求调整）
+	# Priority: Player > LLM/Agent > Pure Logic (can be adjusted as needed)
 	candidates = [
 		("PlayerControlComponent", PlayerControlComponent),
 		("AgentControlComponent", AgentControlComponent),

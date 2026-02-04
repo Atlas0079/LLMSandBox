@@ -8,8 +8,8 @@ from .base import InterruptResult
 @dataclass
 class IdleRule:
 	"""
-	对齐 Godot `RuleIdle.gd` 的语义：
-	- 若 agent 没有 current_task（或没有 WorkerComponent），则给予决策权
+	Align with Godot `RuleIdle.gd` semantics:
+	- If agent has no current_task (or no WorkerComponent), grant decision rights.
 	"""
 
 	priority: int = 999
@@ -18,7 +18,7 @@ class IdleRule:
 		agent = ws.get_entity_by_id(agent_id) if hasattr(ws, "get_entity_by_id") else None
 		worker = agent.get_component("WorkerComponent") if agent is not None else None
 
-		# 若无 WorkerComponent，按“无任务”处理为可中断（空闲）
+		# If no WorkerComponent, treat as "No Task", interruptible (Idle)
 		has_task = False
 		if worker is not None:
 			cur = getattr(worker, "current_task_id", "")
@@ -27,7 +27,7 @@ class IdleRule:
 		if not has_task:
 			return InterruptResult(
 				interrupt=True,
-				reason="处于空闲状态",
+				reason="Idle state",
 				rule_type="Idle",
 				priority=self.priority,
 			)

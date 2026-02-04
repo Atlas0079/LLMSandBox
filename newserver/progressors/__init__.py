@@ -1,14 +1,14 @@
 """
-Task progressors（任务推进器）。
+Task progressors.
 
-推进器负责“算法”；Task/Recipe 负责“参数”。
+Progressor is responsible for "algorithm"; Task/Recipe is responsible for "parameters".
 """
 
 from .base import Progressor
 from .registry import get_progressor, register_progressor
 from .linear import LinearProgressor
 
-# 默认注册
+# Default registration
 register_progressor(LinearProgressor())
 
 __all__ = [

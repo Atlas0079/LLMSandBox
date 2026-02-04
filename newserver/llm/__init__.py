@@ -1,4 +1,4 @@
 """
-LLM 通信层（与远端 OpenAI-compatible API 的交互）。
+LLM Communication Layer (Interaction with remote OpenAI-compatible API).
 """
 

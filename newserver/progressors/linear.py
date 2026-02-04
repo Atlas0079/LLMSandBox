@@ -6,9 +6,9 @@ from typing import Any
 
 def _read_number_from_component(component: Any, prop_name: str, default: float = 0.0) -> float:
 	"""
-	兼容两种组件形态：
-	- dataclass: 直接 getattr
-	- UnknownComponent: 从 component.data 读取
+	Compatible with two component forms:
+	- dataclass: Direct getattr
+	- UnknownComponent: Read from component.data
 	"""
 	if component is None:
 		return float(default)
@@ -30,7 +30,7 @@ def _read_number_from_component(component: Any, prop_name: str, default: float =
 @dataclass
 class LinearProgressor:
 	"""
-	线性推进器（对齐你 Godot WorkerComponent 里硬编码 task_recipe 的形状）：
+	Linear Progressor (Align with your hardcoded task_recipe shape in Godot WorkerComponent):
 	- base_progress_per_tick
 	- progress_contributors: [{component, property, multiplier}]
 	"""

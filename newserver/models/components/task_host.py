@@ -9,17 +9,17 @@ from ..task import Task
 @dataclass
 class TaskHostComponent:
 	"""
-	原 Godot 名称：TaskComponent
+	Original Godot name: TaskComponent
 
-	Python 后端中我们改名为 TaskHostComponent（更清晰：这是“任务宿主/工作站”）。
-	职责：持有任务列表，并提供“可领取任务”查询。
+	Renamed to TaskHostComponent in Python backend (Clearer: This is "Task Host/Workstation").
+	Responsibility: Holds task list and provides "claimable task" query.
 	"""
 
 	# task_id -> Task
 	tasks: dict[str, Task] = field(default_factory=dict)
 
 	def per_tick(self, _ws: Any, _entity_id: str, _ticks_per_minute: int) -> None:
-		# 宿主不推进任务，推进由 Worker/Manager 负责
+		# Host does not progress tasks, progression is handled by Worker/Manager.
 		return
 
 	def add_task(self, task: Task) -> None:

@@ -7,25 +7,25 @@ from typing import Any
 @dataclass
 class AgentControlComponent:
 	"""
-	Agent 控制开关（“这个实体是否允许被 Agent/LLM 驱动”）。
+	Agent control switch ("Is this entity allowed to be driven by Agent/LLM").
 
-	设计目标：
-	- 显式授权：只有挂载了该组件的实体，才会进入决策循环。
-	- 可扩展：未来可以在这里挂不同的控制模式/提供者（LLM/脚本/回放）。
+	Design Goals:
+	- Explicit Authorization: Only entities with this component attached will enter the decision loop.
+	- Extensible: Different control modes/providers (LLM/Script/Replay) can be attached here in the future.
 	"""
 
-	# 是否启用控制（可用于临时“冻结”某个 agent）
+	# Whether control is enabled (can be used to temporarily "freeze" an agent)
 	enabled: bool = True
 
-	# 控制提供者标识（例如：llm/openai、policy/simple、replay/xxx）
-	# 目前主循环还没用到，但保留字段方便后续扩展与展示。
+	# Control provider identifier (e.g., llm/openai, policy/simple, replay/xxx)
+	# Currently not used in the main loop, but the field is reserved for future extension and display.
 	provider_id: str = ""
 
 	def per_tick(self, _ws: Any, _entity_id: str, _ticks_per_minute: int) -> None:
 		"""
-		同步决策（时间停止语义）：
-		- 在同一个 tick 内完成“仲裁→感知→动作生成→配方翻译→产出 effects”。
-		- 不在这里直接执行 effect（仍交给 Manager/Executor），只写入 ws.pending_effects。
+		Synchronous Decision (Time-stop semantics):
+		- Complete "Arbitration -> Perception -> Action Generation -> Recipe Translation -> Output effects" within the same tick.
+		- Effects are not executed directly here (left to Manager/Executor), only written to ws.pending_effects.
 		"""
 
 		ws = _ws
@@ -46,14 +46,14 @@ class AgentControlComponent:
 		if not getattr(interrupt, "interrupt", False):
 			return
 
-		# 重要：即使当前有 task，也必须询问中断模块（例如 LowNutrition）
-		# 若需要中断，则暂停当前任务并清空 current_task_id（让“紧急需求”抢占行动权）。
+		# Important: Even if there is a current task, the interrupt module (e.g., LowNutrition) must be queried.
+		# If interruption is needed, pause the current task and clear current_task_id (let "urgent needs" preempt action rights).
 		worker = agent.get_component("WorkerComponent")
 		current_task_id = str(getattr(worker, "current_task_id", "") or "") if worker is not None else ""
 		if worker is not None and current_task_id:
 			task = ws.get_task_by_id(current_task_id) if hasattr(ws, "get_task_by_id") else None
 			if task is not None and hasattr(task, "task_status"):
-				# 使用 Effect 修改任务状态
+				# Use Effect to modify task status
 				execute = ws.services.get("execute")
 				if callable(execute):
 					execute(
@@ -68,7 +68,7 @@ class AgentControlComponent:
 				worker.stop_task()
 			except Exception:
 				pass
-			# 记录一个“任务被中断”的事件（可用于观测/调试）
+			# Record a "TaskInterrupted" event (can be used for observation/debugging)
 			if hasattr(ws, "record_event"):
 				try:
 					ws.record_event(
@@ -84,7 +84,7 @@ class AgentControlComponent:
 		default_action_provider = services.get("default_action_provider")
 		action_providers = services.get("action_providers", {}) or {}
 
-		# 选择动作提供者：优先用本组件 provider_id；为空则回退默认
+		# Select action provider: Prioritize this component's provider_id; fallback to default if empty.
 		pid = str(self.provider_id or "").strip()
 		action_provider = default_action_provider if not pid else action_providers.get(pid)
 		if action_provider is None:
@@ -95,37 +95,37 @@ class AgentControlComponent:
 		if interaction_engine is None or not hasattr(interaction_engine, "process_command"):
 			return
 
-		# 保险丝：避免一个 tick 内无限产出瞬时动作卡死
+		# Fuse: Prevent infinite instantaneous action output within a tick from freezing the system.
 		max_actions_in_tick = 50
 		actions_executed = 0
 
-		# 关键：reason/interrupt 必须“随世界变化而刷新”
-		# - 如果不刷新，会出现：吃完苹果（营养已恢复）但下一轮仍沿用旧 reason="营养过低"
-		# - 决策权是否存在（interrupt=True/False）也应随世界变化而变
+		# Critical: reason/interrupt must "refresh as the world changes"
+		# - If not refreshed, issues like: ate an apple (nutrition restored) but next round still uses old reason="LowNutrition" will occur.
+		# - Whether decision rights exist (interrupt=True/False) should also change with the world.
 		reason = str(getattr(interrupt, "reason", "") or "")
 
 		while True:
-			# 若已经在其他系统里拿到了 current_task，则停止继续决策
+			# If current_task has already been obtained in other systems, stop further decision making.
 			worker = agent.get_component("WorkerComponent")
 			if worker is not None and bool(getattr(worker, "current_task_id", "")):
 				break
 
-			# 每轮都重新仲裁：获取最新的 interrupt + reason
+			# Re-arbitrate every round: Get the latest interrupt + reason
 			interrupt = arb.check_if_interrupt_is_needed(ws, agent_id)
 			if not getattr(interrupt, "interrupt", False):
 				break
 			reason = str(getattr(interrupt, "reason", "") or "")
 
-			# LLM 需要“详细事件流”，所以在感知里附带 interactions（感知系统内部负责过滤）
-			# 注意：effects/event_log 很碎，Planner 主要吃 interactions（recipe/attempt 级叙事）
+			# LLM needs "detailed event stream", so include interactions in perception (perception system handles filtering internally).
+			# Note: effects/event_log are granular, Planner mainly consumes interactions (recipe/attempt level narrative).
 			perception = perception_system.perceive(ws, agent_id, include_interactions=True)
-			# 给 LLM 侧额外注入 recipe_db（用于生成可用 verb 集合；避免 n×m 的动作列表）
+			# Inject recipe_db additionally for LLM side (used to generate available verb set; avoid n*m action list).
 			services = getattr(ws, "services", {}) or {}
 			engine = services.get("interaction_engine")
 			if engine is not None and hasattr(engine, "recipe_db") and isinstance(getattr(engine, "recipe_db"), dict):
 				perception["recipe_db"] = dict(getattr(engine, "recipe_db"))
 
-			# 兼容不同 decide 签名：decide(perception, reason) 或 decide(perception, reason, agent_id)
+			# Compatible with different decide signatures: decide(perception, reason) or decide(perception, reason, agent_id)
 			try:
 				actions = action_provider.decide(perception, reason, agent_id)
 			except TypeError:
@@ -141,7 +141,7 @@ class AgentControlComponent:
 				target_id = str((action or {}).get("target_id", "") or "")
 
 				if status != "success":
-					# 记录失败的动作尝试（给 Planner 用；失败通常意味着“世界/记忆不符”）
+					# Record failed action attempts (for Planner; failure usually means "World/Memory mismatch").
 					reason_code = str((result or {}).get("reason", "") or "")
 					if hasattr(ws, "record_interaction_attempt"):
 						ws.record_interaction_attempt(
@@ -152,11 +152,11 @@ class AgentControlComponent:
 							reason=reason_code,
 							recipe_id="",
 						)
-					# 不抛异常，避免一个 agent 让整个模拟崩溃；停止后续动作
+					# Do not raise exception, avoid one agent crashing the entire simulation; stop subsequent actions.
 					return
 
 				ctx = (result or {}).get("context", {}) or {}
-				# 记录成功的动作尝试（recipe_id 用于后续渲染模板）
+				# Record successful action attempts (recipe_id used for subsequent template rendering)
 				recipe_id = ""
 				try:
 					recipe_id = str(((ctx or {}).get("recipe", {}) or {}).get("id", "") or "")
@@ -178,8 +178,8 @@ class AgentControlComponent:
 						if callable(execute):
 							execute(eff, ctx)
 
-				# 关键：立刻执行 effects，让世界状态在同一 tick 内更新
-				# 用意：支持 Grounder 多步 action 串；也避免重复看到同一个目标导致无限 Consume。
+				# Critical: Execute effects immediately, updating world state within the same tick.
+				# Intent: Support Grounder multi-step action sequences; also avoid repeatedly seeing the same target leading to infinite Consume.
 				# REMOVED: Immediate execution mode is now default via 'execute' wrapper
 				# services = getattr(ws, "services", {}) or {}
 				# flush = services.get("flush_effects")
@@ -187,7 +187,7 @@ class AgentControlComponent:
 				# 	try:
 				# 		flush()
 				# 	except Exception:
-				# 		# flush 失败不应让整个模拟崩溃
+				# 		# flush failure should not crash the entire simulation
 				# 		return
 
 				worker_after = agent.get_component("WorkerComponent")
@@ -198,4 +198,4 @@ class AgentControlComponent:
 				if actions_executed >= max_actions_in_tick:
 					return
 
-			# 下一轮循环开始会重新仲裁 & 检查 current_task
+			# Next loop start will re-arbitrate & check current_task
