@@ -12,7 +12,7 @@ from urllib.request import Request, urlopen
 
 DEFAULT_BASE_URL = os.environ.get("LLM_BASE_URL", "https://www.packyapi.com/")
 DEFAULT_API_PREFIX = os.environ.get("LLM_API_PREFIX", "/v1")
-DEFAULT_API_KEY = os.environ.get("LLM_API_KEY", "sk-QItd82OOCDas3pjeUjVVGuoIIiNF87Gk2lPFJeCyS9CxdxN4")
+DEFAULT_API_KEY = os.environ.get("LLM_API_KEY", "")
 
 
 class LLMRequestError(RuntimeError):
