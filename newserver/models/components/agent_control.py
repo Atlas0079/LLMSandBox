@@ -54,16 +54,16 @@ class AgentControlComponent:
 			task = ws.get_task_by_id(current_task_id) if hasattr(ws, "get_task_by_id") else None
 			if task is not None and hasattr(task, "task_status"):
 				# 使用 Effect 修改任务状态
-				ws.pending_effects.append(
-					{
-						"effect": {
+				execute = ws.services.get("execute")
+				if callable(execute):
+					execute(
+						{
 							"effect": "UpdateTaskStatus",
 							"task_id": current_task_id,
 							"status": "Paused",
 						},
-						"context": {"agent_id": agent_id, "task_id": current_task_id},
-					}
-				)
+						{"agent_id": agent_id, "task_id": current_task_id},
+					)
 			try:
 				worker.stop_task()
 			except Exception:
@@ -174,18 +174,21 @@ class AgentControlComponent:
 
 				for eff in (result or {}).get("effects", []) or []:
 					if isinstance(eff, dict) and isinstance(ctx, dict):
-						ws.pending_effects.append({"effect": eff, "context": ctx})
+						execute = ws.services.get("execute")
+						if callable(execute):
+							execute(eff, ctx)
 
 				# 关键：立刻执行 effects，让世界状态在同一 tick 内更新
 				# 用意：支持 Grounder 多步 action 串；也避免重复看到同一个目标导致无限 Consume。
-				services = getattr(ws, "services", {}) or {}
-				flush = services.get("flush_effects")
-				if callable(flush):
-					try:
-						flush()
-					except Exception:
-						# flush 失败不应让整个模拟崩溃
-						return
+				# REMOVED: Immediate execution mode is now default via 'execute' wrapper
+				# services = getattr(ws, "services", {}) or {}
+				# flush = services.get("flush_effects")
+				# if callable(flush):
+				# 	try:
+				# 		flush()
+				# 	except Exception:
+				# 		# flush 失败不应让整个模拟崩溃
+				# 		return
 
 				worker_after = agent.get_component("WorkerComponent")
 				if worker_after is not None and bool(getattr(worker_after, "current_task_id", "")):

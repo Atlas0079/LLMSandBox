@@ -80,8 +80,26 @@ class WorldManager:
 			# 允许控制器在同一 tick 内“立刻生效”：
 			# 用意：支持 Grounder 多步 action 串，以及失败后世界状态即时变化；
 			# 必要性：否则控制器在 per_tick 内反复看到旧世界，会重复执行同一动作。
-			"flush_effects": lambda: self._flush_pending_effects(events),
+			# "flush_effects": lambda: self._flush_pending_effects(events),
+            # NEW: Direct executor access
+            "executor": self.executor,
+            "events_accumulator": events, # Pass the accumulator to allow executor wrapper to append events
 		}
+
+        # Helper wrapper to be used by components via ws.services["execute"](...)
+		def execute_wrapper(effect: dict[str, Any], context: dict[str, Any]) -> None:
+			verbose = str(__import__("os").environ.get("VERBOSE_EVENTS", "") or "").strip() == "1"
+			if verbose:
+				print(f"[Effect] {effect.get('effect')}: {effect} ctx={context}")
+			result_events = self.executor.execute(self.world_state, effect, context)
+			for ev in list(result_events or []):
+				if isinstance(ev, dict):
+					self.world_state.record_event(ev, context)
+					if verbose:
+						print(f"[Event] {ev.get('type')}: {ev}")
+			events.extend(result_events)
+
+		self.world_state.services["execute"] = execute_wrapper
 
 		# 3) per_tick：按实体顺序处理（你想要的“时间停止 + 单线程”语义）
 		# 并在每个实体处理结束后立刻执行 pending_effects（让世界状态即时生效）。
@@ -91,33 +109,34 @@ class WorldManager:
 				if callable(per_tick):
 					per_tick(self.world_state, ent_id, self.ticks_per_step)
 
-			# 3.5) 立刻消费本实体在 per_tick 中产出的 effects（以及之前遗留的 effects）
-			self._flush_pending_effects(events)
+			# 3.5) 
+			# REMOVED: Immediate execution mode, no more flush_pending_effects
+			# self._flush_pending_effects(events)
 
 		return events
 
-	def _flush_pending_effects(self, events: list[dict[str, Any]]) -> None:
-		"""
-		统一执行 pending_effects（写入口唯一）。
-
-		说明：
-		- 允许在 tick 内被多次调用（例如 AgentControl 多步 action 后主动 flush）
-		- events 为“当前 tick 的累计事件列表”，会就地 append
-		"""
-		verbose = str(__import__("os").environ.get("VERBOSE_EVENTS", "") or "").strip() == "1"
-
-		while self.world_state.pending_effects:
-			item = self.world_state.pending_effects.pop(0)
-			eff = item.get("effect", {})
-			ctx = item.get("context", {})
-			if isinstance(eff, dict) and isinstance(ctx, dict):
-				if verbose:
-					print(f"[Effect] {eff.get('effect')}: {eff} ctx={ctx}")
-				result_events = self.executor.execute(self.world_state, eff, ctx)
-				for ev in list(result_events or []):
-					if isinstance(ev, dict):
-						self.world_state.record_event(ev, ctx)
-						if verbose:
-							print(f"[Event] {ev.get('type')}: {ev}")
-				events.extend(result_events)
+	# def _flush_pending_effects(self, events: list[dict[str, Any]]) -> None:
+	# 	"""
+	# 	统一执行 pending_effects（写入口唯一）。
+	# 
+	# 	说明：
+	# 	- 允许在 tick 内被多次调用（例如 AgentControl 多步 action 后主动 flush）
+	# 	- events 为“当前 tick 的累计事件列表”，会就地 append
+	# 	"""
+	# 	verbose = str(__import__("os").environ.get("VERBOSE_EVENTS", "") or "").strip() == "1"
+	# 
+	# 	while self.world_state.pending_effects:
+	# 		item = self.world_state.pending_effects.pop(0)
+	# 		eff = item.get("effect", {})
+	# 		ctx = item.get("context", {})
+	# 		if isinstance(eff, dict) and isinstance(ctx, dict):
+	# 			if verbose:
+	# 				print(f"[Effect] {eff.get('effect')}: {eff} ctx={ctx}")
+	# 			result_events = self.executor.execute(self.world_state, eff, ctx)
+	# 			for ev in list(result_events or []):
+	# 				if isinstance(ev, dict):
+	# 					self.world_state.record_event(ev, ctx)
+	# 					if verbose:
+	# 						print(f"[Event] {ev.get('type')}: {ev}")
+	# 			events.extend(result_events)
 

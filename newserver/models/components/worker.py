@@ -50,16 +50,16 @@ class WorkerComponent:
 		delta = float(progressor.compute_progress_delta(ws, agent_id, task, ticks))
 		
 		# 使用 Effect 推进进度
-		ws.pending_effects.append(
-			{
-				"effect": {
+		execute = ws.services.get("execute")
+		if callable(execute):
+			execute(
+				{
 					"effect": "ProgressTask",
 					"task_id": task.task_id,
 					"delta": delta,
 				},
-				"context": {"agent_id": agent_id, "task_id": task.task_id},
-			}
-		)
+				{"agent_id": agent_id, "task_id": task.task_id},
+			)
 
 		if verbose:
 			print(
@@ -70,20 +70,18 @@ class WorkerComponent:
 		# 2) 执行每 tick 效果（交给 Manager 消费）
 		for eff in list(getattr(task, "tick_effects", []) or []):
 			if isinstance(eff, dict):
-				ws.pending_effects.append(
-					{
-						"effect": eff,
-						"context": {"agent_id": agent_id, "task_id": task.task_id, "target_id": task.target_entity_id},
-					}
-				)
+				if callable(execute):
+					execute(
+						eff,
+						{"agent_id": agent_id, "task_id": task.task_id, "target_id": task.target_entity_id},
+					)
 
 		# 3) 完成判定：完成则排队 FinishTask，并清空 current_task（让决策权出现）
 		if task.is_complete():
-			ws.pending_effects.append(
-				{
-					"effect": {"effect": "FinishTask"},
-					"context": {"agent_id": agent_id, "task_id": task.task_id, "target_id": task.target_entity_id},
-				}
-			)
+			if callable(execute):
+				execute(
+					{"effect": "FinishTask"},
+					{"agent_id": agent_id, "task_id": task.task_id, "target_id": task.target_entity_id},
+				)
 			self.stop_task()
 

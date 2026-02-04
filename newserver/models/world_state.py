@@ -35,7 +35,8 @@ class WorldState:
 
 	# per_tick 阶段由组件写入，Manager 统一消费（执行器唯一写入口）
 	# item: {"effect": {...}, "context": {...}}
-	pending_effects: list[dict[str, Any]] = field(default_factory=list)
+	# pending_effects: list[dict[str, Any]] = field(default_factory=list) # REMOVED: Immediate execution mode
+
 
 	# 世界事件日志（用于观测/回放/调试）
 	# 约定：每条记录包含 tick + 发生地点（用于“同地点可见”的过滤）
