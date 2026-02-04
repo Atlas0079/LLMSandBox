@@ -1,0 +1,75 @@
+{
+    "generic_consume": {
+        "verb": "Consume",
+        "target_tags": ["edible"],
+        "narrative_success": "{actor}吃了{target}",
+        "narrative_fail": "{actor}想吃{target}，但失败了：{reason}",
+        "process": {
+            "required_progress": 0
+        },
+        "outputs": [
+            {
+                "dynamic_outputs_from_component": {
+                    "component": "EdibleComponent",
+                    "property": "effects_on_consume"
+                }
+            },
+            {
+                "effect": "DestroyEntity",
+                "target": "target"
+            }
+        ]
+    },
+    "generic_sleep": {
+        "verb": "Sleep",
+        "target_tags": ["agent"],
+        "narrative_success": "{actor}开始睡觉",
+        "narrative_fail": "{actor}想睡觉，但失败了：{reason}",
+        "process": {
+            "required_progress": 5
+        },
+        "outputs": [
+            {
+                "effect": "ModifyProperty",
+                "target": "target",
+                "component": "CreatureComponent",
+                "property": "current_energy",
+                "change": 10
+            }
+        ],
+        "progression": {
+            "progressor": "Linear",
+            "params": {
+                "base_progress_per_tick": 1.0,
+                "progress_contributors": []
+            },
+            "tick_effects": []
+        }
+    },
+    "generic_rest": {
+        "verb": "Rest",
+        "target_tags": ["agent"],
+        "narrative_success": "{actor}开始休息",
+        "narrative_fail": "{actor}想休息，但失败了：{reason}",
+        "process": {
+            "required_progress": 3
+        },
+        "outputs": [
+            {
+                "effect": "ModifyProperty",
+                "target": "target",
+                "component": "CreatureComponent",
+                "property": "current_energy",
+                "change": 5
+            }
+        ],
+        "progression": {
+            "progressor": "Linear",
+            "params": {
+                "base_progress_per_tick": 1.0,
+                "progress_contributors": []
+            },
+            "tick_effects": []
+        }
+    }
+} 

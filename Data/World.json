@@ -1,0 +1,61 @@
+{
+	"meta": {
+		"version": "0.1.0",
+		"save_name": "Occupancy Test"
+	},
+	"world_state": {
+		"current_tick": 0
+	},
+	"locations": [
+		{
+			"location_id": "town_square",
+			"location_name": "Town Square",
+			"entities": [
+				{
+					"instance_id": "beatrice_01",
+					"template_id": "beatrice",
+					"component_overrides": {
+						"CreatureComponent": {
+							"current_nutrition": 90
+						}
+					}
+				},
+				{
+					"instance_id": "apple_01",
+					"template_id": "Apple",
+					"component_overrides": {}
+				}
+			]
+		}
+	],
+	"tasks": [
+		{
+			"task_id": "task_sleep_01",
+			"task_type": "Sleep",
+			"action_type": "Task",
+			"target_entity_id": "beatrice_01",
+			"progress": 0,
+			"required_progress": 5,
+			"progressor_id": "Linear",
+			"progressor_params": {
+				"base_progress_per_tick": 1.0,
+				"progress_contributors": []
+			},
+			"tick_effects": [],
+			"completion_effects": [
+				{
+					"effect": "ModifyProperty",
+					"target": "target",
+					"component": "CreatureComponent",
+					"property": "current_energy",
+					"change": 20
+				}
+			],
+			"assigned_agent_ids": [
+				"beatrice_01"
+			],
+			"current_agent_id": "beatrice_01"
+		}
+	],
+	"pathes": []
+}

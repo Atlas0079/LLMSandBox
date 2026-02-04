@@ -1,0 +1,41 @@
+{
+    "Apple": {
+        "name": "Apple",
+        "components": {
+            "TagComponent": {
+                "tags": ["item", "food", "apple", "edible"]
+            },
+            "EdibleComponent": {
+                "effects_on_consume": [
+                    {
+                        "effect": "ModifyProperty",
+                        "target": "agent",
+                        "component": "CreatureComponent",
+                        "property": "current_nutrition",
+                        "change": 25
+                    }
+                ]
+            }
+        }
+    },
+    "travelers_backpack": {
+        "name": "Traveler's Backpack",
+        "components": {
+            "TagComponent": {
+                "tags": ["container", "backpack"]
+            },
+            "ContainerComponent": {
+                "slots": {
+                    "main_pouch": {
+                        "capacity_volume": 20,
+                        "accepted_tags": []
+                    },
+                    "side_strap": {
+                        "capacity_count": 1,
+                        "accepted_tags": ["bindable", "tool"]
+                    }
+                }
+            }
+        }
+    }
+}

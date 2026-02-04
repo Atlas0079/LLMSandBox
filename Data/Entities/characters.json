@@ -1,0 +1,30 @@
+{
+    "beatrice": {
+        "name": "Beatrice",
+        "components": {
+            "TagComponent": {
+                "tags": ["character", "agent"]
+            },
+            "CreatureComponent": {
+                "max_hp": 100,
+                "max_energy": 100,
+                "max_nutrition": 100
+            },
+            "AgentComponent": {
+                "agent_name": "Beatrice",
+                "personality_summary": "测试角色：当前目标是尽可能多地探索新交互。",
+                "common_knowledge_summary": "你是一个专用于系统测试的代理，优先尝试并覆盖尽可能多的交互与配方，以验证交互流程与执行器效果。"
+            },
+            "PerceptionComponent": {},
+            "EquipmentComponent": {},
+            "LLMControlComponent": {},
+            "TaskHostComponent": {},
+            "DecisionArbiterComponent": {
+                "rules": [
+                    { "type": "Idle", "priority": 999 },
+                    { "type": "LowNutrition", "priority": 10, "threshold": 50 }
+                ]
+            }
+        }
+    }
+} 
