@@ -1,6 +1,8 @@
 # LLM-Driven Agent Society Simulation Engine
 ## 基于大语言模型的智能体社会仿真演化系统
 
+[English Version](./README_EN.md)
+
 ### 1. 摘要
 
 项目的最终目的是实现一个多智能体仿真系统，用来观察大语言模型 (LLM) 驱动的智能体在动态环境中的决策与交互过程。

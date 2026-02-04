@@ -1,6 +1,8 @@
 # LLM-Driven Agent Society Simulation Engine
 ## LLM-Based Agent Society Simulation Evolution System
 
+[中文版本](./README.md)
+
 ### 1. Abstract
 
 The ultimate goal of this project is to implement a multi-agent simulation system to observe the decision-making and interaction processes of agents driven by Large Language Models (LLM) in a dynamic environment.
